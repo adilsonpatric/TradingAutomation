@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Power, PowerOff, Settings2, ShieldAlert } from "lucide-react";
+import { Plus, Power, PowerOff, Trash2, ShieldAlert, Pencil } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getBots, createBot } from "@/actions/bots";
+import { getBots, createBot, toggleBotStatus, deleteBot, updateBot } from "@/actions/bots";
 
 export default function BotsPage() {
   const [bots, setBots] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   
   // Form state
+  const [editBotId, setEditBotId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [exchange, setExchange] = useState("binance");
   const [pair, setPair] = useState("");
@@ -37,23 +38,81 @@ export default function BotsPage() {
     loadBots();
   }, []);
 
-  const handleCreate = async () => {
+  const resetForm = () => {
+    setEditBotId(null);
+    setName("");
+    setExchange("binance");
+    setPair("");
+    setMarketType("spot");
+    setIsPaperTrading("false");
+    setLeverage("1");
+    setOrderType("market");
+    setSizeType("percentage");
+    setSize("");
+    setCooldown("0");
+    setSl("");
+    setTp("");
+  };
+
+  const handleOpenNew = () => {
+    resetForm();
+    setIsOpen(true);
+  };
+
+  const handleOpenEdit = (bot: any) => {
+    setEditBotId(bot.id);
+    setName(bot.name);
+    setExchange(bot.exchange);
+    setPair(bot.pair);
+    setMarketType(bot.marketType);
+    setIsPaperTrading(bot.isPaperTrading ? "true" : "false");
+    setLeverage(bot.leverage.toString());
+    setOrderType(bot.orderType);
+    setSizeType(bot.sizeType);
+    setSize(bot.tradeSizePercent.toString());
+    setCooldown(bot.cooldownSeconds.toString());
+    setSl(bot.slPercent ? bot.slPercent.toString() : "");
+    setTp(bot.tpPercent ? bot.tpPercent.toString() : "");
+    setIsOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!name || !exchange || !pair || !size) return;
-    await createBot(
-      1, 
-      name, 
-      exchange, 
-      pair, 
-      marketType, 
-      isPaperTrading === "true", 
-      parseInt(leverage) || 1, 
-      orderType, 
-      sizeType, 
-      parseFloat(size), 
-      parseInt(cooldown) || 0,
-      sl ? parseFloat(sl) : null,
-      tp ? parseFloat(tp) : null
-    );
+    
+    if (editBotId) {
+      await updateBot(
+        editBotId,
+        name, 
+        exchange, 
+        pair, 
+        marketType, 
+        isPaperTrading === "true", 
+        parseInt(leverage) || 1, 
+        orderType, 
+        sizeType, 
+        parseFloat(size), 
+        parseInt(cooldown) || 0,
+        sl ? parseFloat(sl) : null,
+        tp ? parseFloat(tp) : null
+      );
+    } else {
+      await createBot(
+        1, 
+        name, 
+        exchange, 
+        pair, 
+        marketType, 
+        isPaperTrading === "true", 
+        parseInt(leverage) || 1, 
+        orderType, 
+        sizeType, 
+        parseFloat(size), 
+        parseInt(cooldown) || 0,
+        sl ? parseFloat(sl) : null,
+        tp ? parseFloat(tp) : null
+      );
+    }
+    
     setIsOpen(false);
     loadBots();
   };
@@ -66,11 +125,14 @@ export default function BotsPage() {
           <p className="text-muted-foreground">Manage your trading automation endpoints and sizes.</p>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger render={<Button className="gap-2"><Plus className="w-4 h-4" /> New Bot</Button>} />
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          if (!open) resetForm();
+          setIsOpen(open);
+        }}>
+          <DialogTrigger render={<Button onClick={handleOpenNew} className="gap-2"><Plus className="w-4 h-4" /> New Bot</Button>} />
           <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Advanced Bot</DialogTitle>
+              <DialogTitle>{editBotId ? 'Edit Bot' : 'Create Advanced Bot'}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               
@@ -154,7 +216,7 @@ export default function BotsPage() {
 
             </div>
             <DialogFooter>
-              <Button onClick={handleCreate} className="w-full">Create Bot</Button>
+              <Button onClick={handleSave} className="w-full">{editBotId ? 'Save Changes' : 'Create Bot'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -184,11 +246,27 @@ export default function BotsPage() {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="icon"><Settings2 className="w-4 h-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => handleOpenEdit(bot)}>
+                  <Pencil className="w-4 h-4 text-primary" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={async () => {
+                  if (confirm('Are you sure you want to delete this bot?')) {
+                    await deleteBot(bot.id);
+                    loadBots();
+                  }
+                }}>
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                </Button>
                 {bot.isRunning ? (
-                  <Button variant="destructive" size="icon"><PowerOff className="w-4 h-4" /></Button>
+                  <Button variant="destructive" size="icon" onClick={async () => {
+                    await toggleBotStatus(bot.id, true);
+                    loadBots();
+                  }}><PowerOff className="w-4 h-4" /></Button>
                 ) : (
-                  <Button variant="default" size="icon" className="bg-emerald-500"><Power className="w-4 h-4" /></Button>
+                  <Button variant="default" size="icon" className="bg-emerald-500" onClick={async () => {
+                    await toggleBotStatus(bot.id, false);
+                    loadBots();
+                  }}><Power className="w-4 h-4" /></Button>
                 )}
               </div>
             </CardHeader>

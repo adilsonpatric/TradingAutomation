@@ -40,3 +40,44 @@ export async function createBot(
     
     return result[0];
 }
+
+import { eq } from 'drizzle-orm';
+
+export async function updateBot(
+    botId: number, 
+    name: string, 
+    exchange: string, 
+    pair: string, 
+    marketType: string,
+    isPaperTrading: boolean,
+    leverage: number,
+    orderType: string,
+    sizeType: string,
+    tradeSizePercent: number,
+    cooldownSeconds: number,
+    slPercent: number | null,
+    tpPercent: number | null
+) {
+    await db.update(bots).set({
+        name,
+        exchange,
+        pair,
+        marketType,
+        isPaperTrading,
+        leverage,
+        orderType,
+        sizeType,
+        tradeSizePercent,
+        cooldownSeconds,
+        slPercent,
+        tpPercent,
+    }).where(eq(bots.id, botId)).execute();
+}
+
+export async function toggleBotStatus(botId: number, currentStatus: boolean) {
+    await db.update(bots).set({ isRunning: !currentStatus }).where(eq(bots.id, botId)).execute();
+}
+
+export async function deleteBot(botId: number) {
+    await db.delete(bots).where(eq(bots.id, botId)).execute();
+}
