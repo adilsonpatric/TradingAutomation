@@ -1,0 +1,18 @@
+{
+  "name": "crypto-trading-automation",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "db:generate": "npm run db:generate -w database",
+    "db:push": "npm run db:push -w database",
+    "dev:engine": "npm run dev -w engine",
+    "dev:web": "npm run dev -w web",
+    "dev": "concurrently \"npm run dev:engine\" \"npm run dev:web\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.0"
+  }
+}
