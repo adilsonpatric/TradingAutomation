@@ -3,11 +3,19 @@ import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   webhookSecret: text('webhook_secret').notNull(),
+  telegramBotToken: text('telegram_bot_token'),
   telegramChatId: text('telegram_chat_id'),
+  webhookDomain: text('webhook_domain'),
+  syncIntervalMinutes: integer('sync_interval_minutes').default(10).notNull(),
+  notifyTradeEntry: integer('notify_trade_entry', { mode: 'boolean' }).default(true).notNull(),
+  notifyTradeClose: integer('notify_trade_close', { mode: 'boolean' }).default(true).notNull(),
+  notifyTpSl: integer('notify_tp_sl', { mode: 'boolean' }).default(true).notNull(),
+  portaiqApiKey: text('portaiq_api_key'),
 });
 
 export const apiKeys = sqliteTable('api_keys', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().default('Main Account'),
   exchange: text('exchange').notNull(), // 'binance' or 'bybit'
   apiKey: text('api_key').notNull(),
   apiSecret: text('api_secret').notNull(),
@@ -17,6 +25,7 @@ export const apiKeys = sqliteTable('api_keys', {
 export const bots = sqliteTable('bots', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  apiKeyId: integer('api_key_id').references(() => apiKeys.id),
   pair: text('pair').notNull(),
   exchange: text('exchange').notNull(),
   marketType: text('market_type').default('spot').notNull(), // 'spot' or 'futures'
@@ -40,5 +49,10 @@ export const trades = sqliteTable('trades', {
   side: text('side').notNull(), // 'buy' or 'sell'
   price: real('price').notNull(),
   amount: real('amount').notNull(),
+  exchangeOrderId: text('exchange_order_id'),
+  tpOrderId: text('tp_order_id'),
+  slOrderId: text('sl_order_id'),
+  status: text('status').default('open').notNull(), // 'open' or 'closed'
+  pnl: real('pnl'),
   timestamp: integer('timestamp', { mode: 'timestamp' }).defaultNow().notNull(),
 });

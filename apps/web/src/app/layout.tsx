@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: '--font-inter' });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
         <main className="flex-1 p-8 overflow-y-auto">
           {children}
         </main>
+        <Toaster theme="dark" position="bottom-right" />
       </body>
     </html>
   );

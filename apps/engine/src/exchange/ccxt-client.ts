@@ -23,8 +23,8 @@ export async function executeTrade(bot: any, side: string, webhookAmountOrPercen
     }
 
     // 2. Fetch Decrypted API Keys
-    const keys = await db.select().from(apiKeys).where(eq(apiKeys.userId, bot.userId)).execute();
-    const exchangeKeys = keys.find(k => k.exchange === bot.exchange);
+    const keys = await db.select().from(apiKeys).where(eq(apiKeys.id, bot.apiKeyId)).execute();
+    const exchangeKeys = keys[0];
 
     if (!exchangeKeys) {
         throw new Error(`API keys for ${bot.exchange} not configured.`);
@@ -41,12 +41,15 @@ export async function executeTrade(bot: any, side: string, webhookAmountOrPercen
         throw new Error(`Unsupported exchange: ${bot.exchange}`);
     }
 
-    const exchange = new exchangeClass({
+    // Instantiate CCXT Exchange
+    const exchange = new (exchangeClass as any)({
         apiKey: apiKey,
         secret: secret,
         enableRateLimit: true,
         options: {
-            defaultType: bot.marketType // 'spot' or 'future'
+            defaultType: bot.marketType, // 'spot' or 'futures'
+            adjustForTimeDifference: true,
+            recvWindow: 10000
         }
     });
 
@@ -100,6 +103,9 @@ export async function executeTrade(bot: any, side: string, webhookAmountOrPercen
     
     const fillPrice = order.average || order.price || currentPrice;
 
+    let tpOrderId: string | undefined;
+    let slOrderId: string | undefined;
+
     // 6. Execute Stop Loss & Take Profit Conditional Orders
     try {
         if (bot.slPercent) {
@@ -107,10 +113,11 @@ export async function executeTrade(bot: any, side: string, webhookAmountOrPercen
             const slPrice = fillPrice * slMultiplier;
             const slSide = side === 'buy' ? 'sell' : 'buy';
             
-            await exchange.createOrder(bot.pair, 'stop_market', slSide, orderAmount, undefined, {
+            const slOrder = await exchange.createOrder(bot.pair, 'stop_market', slSide, orderAmount, undefined, {
                 stopPrice: exchange.priceToPrecision(bot.pair, slPrice),
                 reduceOnly: true
             });
+            slOrderId = slOrder.id;
         }
 
         if (bot.tpPercent) {
@@ -118,15 +125,20 @@ export async function executeTrade(bot: any, side: string, webhookAmountOrPercen
             const tpPrice = fillPrice * tpMultiplier;
             const tpSide = side === 'buy' ? 'sell' : 'buy';
 
-            await exchange.createOrder(bot.pair, 'take_profit_market', tpSide, orderAmount, undefined, {
+            const tpOrder = await exchange.createOrder(bot.pair, 'take_profit_market', tpSide, orderAmount, undefined, {
                 stopPrice: exchange.priceToPrecision(bot.pair, tpPrice),
                 reduceOnly: true
             });
+            tpOrderId = tpOrder.id;
         }
     } catch (conditionalError: any) {
         console.error(`[SL/TP ERROR] Failed to place conditional orders: ${conditionalError.message}`);
         // We do not throw here, because the main entry order was already successful.
     }
 
-    return order;
+    return {
+        ...order,
+        tpOrderId,
+        slOrderId
+    };
 }

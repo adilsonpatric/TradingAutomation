@@ -1,23 +1,88 @@
 'use server'
 
-import { db, trades, bots, desc, eq } from '@/lib/db';
+import { db, trades, bots, users, desc, eq } from '@/lib/db';
+import { revalidatePath } from 'next/cache';
 
 export async function getRecentTrades() {
-    // We join trades with bots to get the exchange name
-    const recentTrades = await db.select({
-        id: trades.id,
-        symbol: trades.symbol,
-        side: trades.side,
-        price: trades.price,
-        amount: trades.amount,
-        timestamp: trades.timestamp,
-        exchange: bots.exchange,
-    })
-    .from(trades)
-    .leftJoin(bots, eq(trades.botId, bots.id))
-    .orderBy(desc(trades.timestamp))
-    .limit(10)
-    .execute();
+    const data = await db
+        .select({
+            id: trades.id,
+            botName: bots.name,
+            symbol: trades.symbol,
+            side: trades.side,
+            price: trades.price,
+            amount: trades.amount,
+            timestamp: trades.timestamp,
+            isPaperTrading: bots.isPaperTrading,
+            status: trades.status,
+            pnl: trades.pnl,
+        })
+        .from(trades)
+        .leftJoin(bots, eq(trades.botId, bots.id))
+        .orderBy(desc(trades.timestamp))
+        .limit(100)
+        .execute();
+        
+    return data;
+}
 
-    return recentTrades;
+export async function deleteTrade(id: number) {
+    await db.delete(trades).where(eq(trades.id, id)).execute();
+    revalidatePath('/activity');
+}
+
+export async function exportTradeToPortaIQ(tradeId: number) {
+    // Buscamos o trade no banco de dados por segurança, para não depender de dados do client-side
+    const tradeData = await db.select().from(trades).where(eq(trades.id, tradeId)).execute();
+    
+    if (!tradeData.length) {
+        throw new Error("Trade not found");
+    }
+    
+    console.log("[PortaIQ Integration] Exporting trade:", tradeData[0]);
+    
+    // We get user preferences to find the API key
+    const userData = await db.select().from(users).where(eq(users.id, 1)).execute();
+    const portaiqApiKey = userData[0]?.portaiqApiKey;
+
+    if (!portaiqApiKey) {
+        throw new Error("PortaIQ API Key is not configured. Please add it in Settings.");
+    }
+    
+    const trade = tradeData[0];
+    const botData = await db.select().from(bots).where(eq(bots.id, trade.botId!)).execute();
+    const bot = botData[0];
+
+    const stockIqPayload = {
+        symbol: trade.symbol.replace('/', ''),
+        asset_type: "crypto",
+        type: trade.side === 'buy' ? 'long' : 'short',
+        status: trade.status === 'open' ? 'open' : 'closed',
+        quantity: trade.amount,
+        entry_price: trade.price,
+        exit_price: trade.status === 'closed' ? (trade.pnl !== null ? (trade.side === 'buy' ? trade.price + (trade.pnl / trade.amount) : trade.price - (trade.pnl / trade.amount)) : undefined) : undefined,
+        stop_loss: bot?.slPercent ? (trade.side === 'buy' ? trade.price * (1 - bot.slPercent/100) : trade.price * (1 + bot.slPercent/100)) : undefined,
+        take_profit: bot?.tpPercent ? (trade.side === 'buy' ? trade.price * (1 + bot.tpPercent/100) : trade.price * (1 - bot.tpPercent/100)) : undefined,
+        commissions: 0, // Since we don't store it on this level
+        entry_date: trade.createdAt ? new Date(trade.createdAt * 1000).toISOString() : new Date().toISOString(),
+        exit_date: trade.status === 'closed' ? new Date().toISOString() : undefined,
+        notes: `Manually exported from Trading Automation Bot (${bot?.name || 'Unknown'}).`
+    };
+
+    const response = await fetch('http://localhost:3001/api/journal/trades', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${portaiqApiKey}`
+        },
+        body: JSON.stringify(stockIqPayload)
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[PortaIQ Integration] Failed:", errorData);
+        throw new Error(errorData.error || "Failed to export to PortaIQ");
+    }
+    
+    return { success: true, message: "Exported successfully" };
 }

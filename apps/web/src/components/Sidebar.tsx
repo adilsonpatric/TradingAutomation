@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, Bot, Settings, Activity } from 'lucide-react';
+import { Home, Bot, Settings, Activity, BookOpen } from 'lucide-react';
 
 export function Sidebar() {
   return (
@@ -17,6 +17,14 @@ export function Sidebar() {
         <Link href="/bots" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
           <Bot className="w-5 h-5" />
           <span>Bots & Strategies</span>
+        </Link>
+        <Link href="/activity" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+          <Activity className="w-5 h-5" />
+          <span>Trading Activity</span>
+        </Link>
+        <Link href="/guide" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+          <BookOpen className="w-5 h-5" />
+          <span>Setup Guide</span>
         </Link>
         <Link href="/settings" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors mt-auto">
           <Settings className="w-5 h-5" />

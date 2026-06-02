@@ -2,28 +2,40 @@
 
 import { db, apiKeys, eq, and } from '@/lib/db';
 import { encrypt } from 'database';
+import { revalidatePath } from 'next/cache';
 
-export async function saveApiKeys(userId: number, exchange: string, apiKey: string, apiSecret: string) {
-    if (!apiKey || !apiSecret) return;
-    
+export async function addApiKey(userId: number, name: string, exchange: string, apiKey: string, apiSecret: string) {
+    if (!name || !apiKey || !apiSecret) throw new Error("Missing fields");
     const encryptedKey = encrypt(apiKey);
     const encryptedSecret = encrypt(apiSecret);
-    
-    const existing = await db.select().from(apiKeys).where(
-        and(eq(apiKeys.userId, userId), eq(apiKeys.exchange, exchange))
-    ).execute();
+    await db.insert(apiKeys).values({
+        userId,
+        name,
+        exchange,
+        apiKey: encryptedKey,
+        apiSecret: encryptedSecret,
+    }).execute();
+    revalidatePath('/settings');
+    revalidatePath('/bots');
+    revalidatePath('/');
+}
 
-    if (existing.length > 0) {
-        await db.update(apiKeys)
-            .set({ apiKey: encryptedKey, apiSecret: encryptedSecret })
-            .where(eq(apiKeys.id, existing[0].id))
-            .execute();
-    } else {
-        await db.insert(apiKeys).values({
-            userId,
-            exchange,
-            apiKey: encryptedKey,
-            apiSecret: encryptedSecret,
-        }).execute();
-    }
+export async function deleteApiKey(userId: number, keyId: number) {
+    await db.delete(apiKeys).where(
+        and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId))
+    ).execute();
+    revalidatePath('/settings');
+    revalidatePath('/bots');
+    revalidatePath('/');
+}
+
+export async function getApiKeys(userId: number) {
+    const keys = await db.select({
+        id: apiKeys.id,
+        name: apiKeys.name,
+        exchange: apiKeys.exchange,
+        apiKey: apiKeys.apiKey,
+        apiSecret: apiKeys.apiSecret
+    }).from(apiKeys).where(eq(apiKeys.userId, userId)).execute();
+    return keys;
 }
