@@ -96,8 +96,65 @@ export async function syncPositions() {
                     pnl = (trade.price - fillPrice) * trade.amount;
                 }
 
+                // Send to StockIQ via API
+                let portaiqSyncedOk = false;
+                const userRecords = await db.select().from(users).where(eq(users.id, bot.userId)).execute();
+                const user = userRecords[0];
+
+                if (user && user.portaiqApiKey) {
+                    try {
+                        let entryDateStr = new Date().toISOString();
+                        if (trade.timestamp) {
+                            let time = trade.timestamp.getTime();
+                            if (time > 20000000000000) {
+                                time = Math.floor(time / 1000);
+                            }
+                            entryDateStr = new Date(time).toISOString();
+                        }
+
+                        const stockIqPayload = {
+                            symbol: trade.symbol.replace('/', ''),
+                            asset_type: "crypto",
+                            type: trade.side === 'buy' ? 'long' : 'short',
+                            status: 'closed',
+                            quantity: trade.amount,
+                            entry_price: trade.price,
+                            exit_price: fillPrice,
+                            stop_loss: bot.slPercent ? (trade.side === 'buy' ? trade.price * (1 - bot.slPercent/100) : trade.price * (1 + bot.slPercent/100)) : undefined,
+                            take_profit: bot.tpPercent ? (trade.side === 'buy' ? trade.price * (1 + bot.tpPercent/100) : trade.price * (1 - bot.tpPercent/100)) : undefined,
+                            commissions: 0,
+                            entry_date: entryDateStr,
+                            exit_date: new Date().toISOString(),
+                            notes: `Trade closed by ${hitType} via Trading Automation Bot (${bot.name}).`
+                        };
+
+                        const portaiqUrl = user.portaiqUrl || 'http://localhost:3001/api/journal/trades';
+                        const response = await fetch(portaiqUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${user.portaiqApiKey}`
+                            },
+                            body: JSON.stringify(stockIqPayload)
+                        });
+
+                        if (!response.ok) {
+                            console.error(`[Background Sync] Failed to export trade ${trade.id} to PortaIQ:`, await response.text());
+                        } else {
+                            portaiqSyncedOk = true;
+                            console.log(`[SYNC] Successfully sent trade to StockIQ Journal (Bot: ${bot.name}).`);
+                        }
+                    } catch (e) {
+                        console.error('[SYNC] Failed to send trade to StockIQ', e);
+                    }
+                }
+
                 await db.update(trades)
-                    .set({ status: 'closed', pnl: pnl })
+                    .set({ 
+                        status: 'closed', 
+                        pnl: pnl,
+                        portaiqSynced: portaiqSyncedOk
+                    })
                     .where(eq(trades.id, trade.id))
                     .execute();
                     
@@ -105,9 +162,6 @@ export async function syncPositions() {
                 console.log(`[SYNC] Trade ${trade.id} closed via ${hitType}. PnL: $${pnl.toFixed(2)}`);
 
                 // Send Telegram Notification
-                const userRecords = await db.select().from(users).where(eq(users.id, bot.userId)).execute();
-                const user = userRecords[0];
-
                 if (user && user.telegramBotToken && user.telegramChatId && user.notifyTpSl) {
                     try {
                         const telegrafBot = new Telegraf(user.telegramBotToken);
@@ -119,45 +173,6 @@ export async function syncPositions() {
                         );
                     } catch (e) {
                         console.error('[SYNC] Failed to send telegram message', e);
-                    }
-                }
-
-                // Send to StockIQ via API
-                if (user && user.portaiqApiKey) {
-                    try {
-                        const stockIqPayload = {
-                            symbol: trade.symbol.replace('/', ''),
-                            asset_type: "crypto",
-                            type: trade.side === 'buy' ? 'long' : 'short',
-                            status: "closed",
-                            quantity: trade.amount,
-                            entry_price: trade.price,
-                            exit_price: fillPrice,
-                            stop_loss: bot.slPercent ? (trade.side === 'buy' ? trade.price * (1 - bot.slPercent/100) : trade.price * (1 + bot.slPercent/100)) : undefined,
-                            take_profit: bot.tpPercent ? (trade.side === 'buy' ? trade.price * (1 + bot.tpPercent/100) : trade.price * (1 - bot.tpPercent/100)) : undefined,
-                            commissions: closedOrder.fee?.cost || 0,
-                            entry_date: trade.createdAt ? new Date(trade.createdAt * 1000).toISOString() : new Date().toISOString(),
-                            exit_date: new Date().toISOString(),
-                            notes: `Trade closed by ${hitType} via Trading Automation Bot (${bot.name}).`
-                        };
-
-                        const response = await fetch('http://localhost:3001/api/journal/trades', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${user.portaiqApiKey}`
-                            },
-                            body: JSON.stringify(stockIqPayload)
-                        });
-
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            console.error('[SYNC] StockIQ API error:', errorData);
-                        } else {
-                            console.log(`[SYNC] Successfully sent trade to StockIQ Journal (Bot: ${bot.name}).`);
-                        }
-                    } catch (e) {
-                        console.error('[SYNC] Failed to send trade to StockIQ', e);
                     }
                 }
             }

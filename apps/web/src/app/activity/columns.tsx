@@ -30,6 +30,7 @@ export type Trade = {
   isPaperTrading: boolean
   status: string
   pnl: number | null
+  portaiqSynced: boolean
 }
 
 const ActionsCell = ({ trade }: { trade: Trade }) => {
@@ -200,10 +201,18 @@ export const columns: ColumnDef<Trade>[] = [
     header: "Status",
     cell: ({ row }) => {
       const status = row.getValue("status") as string
-      return status === "closed" ? (
-        <Badge variant="outline" className="text-gray-400 border-gray-500/20 bg-gray-500/10 capitalize">{status}</Badge>
-      ) : (
-        <Badge variant="outline" className="text-blue-400 border-blue-500/20 bg-blue-500/10 capitalize">{status || 'open'}</Badge>
+      const synced = row.original.portaiqSynced
+      return (
+        <div className="flex items-center gap-2">
+          {status === "closed" ? (
+            <Badge variant="outline" className="text-gray-400 border-gray-500/20 bg-gray-500/10 capitalize">{status}</Badge>
+          ) : (
+            <Badge variant="outline" className="text-blue-400 border-blue-500/20 bg-blue-500/10 capitalize">{status || 'open'}</Badge>
+          )}
+          {synced && (
+            <Badge variant="outline" className="text-sky-500 border-sky-500/20 bg-sky-500/10" title="Synced to StockIQ">☁️</Badge>
+          )}
+        </div>
       )
     },
   },

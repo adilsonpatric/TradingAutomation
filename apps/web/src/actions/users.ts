@@ -23,27 +23,28 @@ export async function getUserPreferences(userId: number) {
     return userRecord[0];
 }
 
-export async function updateUserPreferences(
-    userId: number, 
-    webhookSecret: string, 
-    telegramBotToken: string, 
-    telegramChatId: string, 
-    webhookDomain: string,
-    syncIntervalMinutes?: number,
-    notifyTradeEntry?: boolean,
-    notifyTradeClose?: boolean,
-    notifyTpSl?: boolean,
-    portaiqApiKey?: string
-) {
+export async function updateUserPreferences(userId: number, preferences: {
+    webhookSecret?: string;
+    webhookDomain?: string;
+    telegramBotToken?: string;
+    telegramChatId?: string;
+    syncIntervalMinutes?: number;
+    notifyTradeEntry?: boolean;
+    notifyTradeClose?: boolean;
+    notifyTpSl?: boolean;
+    portaiqApiKey?: string;
+    portaiqUrl?: string;
+}) {
     await db.update(users).set({
-        webhookSecret,
-        telegramBotToken,
-        telegramChatId,
-        webhookDomain,
-        syncIntervalMinutes,
-        notifyTradeEntry,
-        notifyTradeClose,
-        notifyTpSl,
-        portaiqApiKey
+        webhookSecret: preferences.webhookSecret,
+        telegramBotToken: preferences.telegramBotToken,
+        telegramChatId: preferences.telegramChatId,
+        webhookDomain: preferences.webhookDomain,
+        syncIntervalMinutes: preferences.syncIntervalMinutes,
+        notifyTradeEntry: preferences.notifyTradeEntry,
+        notifyTradeClose: preferences.notifyTradeClose,
+        notifyTpSl: preferences.notifyTpSl,
+        portaiqApiKey: preferences.portaiqApiKey,
+        portaiqUrl: preferences.portaiqUrl
     }).where(eq(users.id, userId)).execute();
 }

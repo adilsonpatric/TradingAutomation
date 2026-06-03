@@ -11,6 +11,7 @@ export const users = sqliteTable('users', {
   notifyTradeClose: integer('notify_trade_close', { mode: 'boolean' }).default(true).notNull(),
   notifyTpSl: integer('notify_tp_sl', { mode: 'boolean' }).default(true).notNull(),
   portaiqApiKey: text('portaiq_api_key'),
+  portaiqUrl: text('portaiq_url'),
 });
 
 export const apiKeys = sqliteTable('api_keys', {
@@ -54,5 +55,6 @@ export const trades = sqliteTable('trades', {
   slOrderId: text('sl_order_id'),
   status: text('status').default('open').notNull(), // 'open' or 'closed'
   pnl: real('pnl'),
-  timestamp: integer('timestamp', { mode: 'timestamp' }).defaultNow().notNull(),
+  timestamp: integer('timestamp', { mode: 'timestamp_ms' }).defaultNow().notNull(),
+  portaiqSynced: integer('portaiq_synced', { mode: 'boolean' }).default(false),
 });

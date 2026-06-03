@@ -8,8 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect } from "react";
 import { addApiKey, deleteApiKey, getApiKeys } from "@/actions/keys";
 import { getUserPreferences, updateUserPreferences } from "@/actions/users";
-import { testExchangeConnection } from "@/actions/ccxt";
-import { Activity, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Activity, Plus, Trash2, Eye, EyeOff, Settings2, Link2, Send, Server, Key, Link } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -43,6 +42,7 @@ export default function SettingsPage() {
   const [notifyTradeClose, setNotifyTradeClose] = useState<boolean>(true);
   const [notifyTpSl, setNotifyTpSl] = useState<boolean>(true);
   const [portaiqApiKey, setPortaiqApiKey] = useState("");
+  const [portaiqUrl, setPortaiqUrl] = useState("");
 
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +66,7 @@ export default function SettingsPage() {
       setNotifyTradeClose(prefs.notifyTradeClose ?? true);
       setNotifyTpSl(prefs.notifyTpSl ?? true);
       setPortaiqApiKey(prefs.portaiqApiKey || "");
+      setPortaiqUrl(prefs.portaiqUrl || "");
     }
     const list = await getApiKeys(1);
     setKeys(list as ApiKey[]);
@@ -94,21 +95,13 @@ export default function SettingsPage() {
     loadData();
   };
 
-  const handleTestKey = async (id: number, exchange: string, apiKey: string, apiSecret: string) => {
-    setTestStatus(prev => ({ ...prev, [id]: { testing: true, result: '', expiresAt: '' } }));
-    
-    // Test direct CCXT connection by passing decrypted keys (note: keys in state are encrypted, we should test with the raw inputs or send ID)
-    // Wait, the testExchangeConnection now accepts raw keys, but the list from DB has ENCRYPTED keys. 
-    // We should probably just pass the apiKeyId and have the backend decrypt it!
-    // I need to update ccxt.ts again or just use getExchangeConnectionInfo?
-    // Let's use testExchangeConnection but we can't easily decrypt on frontend.
-  };
-
   const handleSavePreferences = async () => {
-    if (!webhookSecret) return;
+    if (!webhookSecret) {
+        toast.error("TradingView Webhook Secret is required.");
+        return;
+    }
     setLoading(true);
-    await updateUserPreferences(
-      1, 
+    await updateUserPreferences(1, {
       webhookSecret, 
       telegramBotToken, 
       telegramChatId, 
@@ -117,108 +110,149 @@ export default function SettingsPage() {
       notifyTradeEntry,
       notifyTradeClose,
       notifyTpSl,
-      portaiqApiKey
-    );
+      portaiqApiKey,
+      portaiqUrl
+    });
     setLoading(false);
     toast.success('Global preferences updated!');
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your subaccounts, API keys, and global preferences.</p>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <p className="text-muted-foreground">Manage your integrations, API keys, and global preferences.</p>
+        </div>
+        <Button disabled={loading} onClick={handleSavePreferences} className="gap-2">
+            <Server className="w-4 h-4" />
+            Save All Preferences
+        </Button>
       </div>
 
-      <Card className="bg-card/40 backdrop-blur-sm border-primary/20 shadow-[0_0_15px_rgba(0,100,255,0.05)]">
-        <CardHeader>
-          <CardTitle>Global Preferences</CardTitle>
-          <CardDescription>Configure your global webhook security and Telegram notifications.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>TradingView Webhook Secret</Label>
-              <div className="relative">
-                <Input type={showWebhookSecret ? "text" : "password"} value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} placeholder="Required payload secret" className="bg-background/50 font-mono text-sm pr-10" />
-                <button
-                  type="button"
-                  onClick={() => setShowWebhookSecret(!showWebhookSecret)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+      <div className="grid gap-6 md:grid-cols-2">
+          {/* PortaIQ / StockIQ Integration */}
+          <Card className="bg-card/40 backdrop-blur-sm border-primary/20 shadow-[0_0_15px_rgba(0,100,255,0.05)]">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2 text-primary mb-1">
+                <Activity className="w-5 h-5" />
+                <CardTitle>PortaIQ / StockIQ</CardTitle>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Webhook Domain</Label>
-              <Input type="text" value={webhookDomain} onChange={(e) => setWebhookDomain(e.target.value)} placeholder="e.g. http://your-ip:4000" className="bg-background/50 font-mono text-sm" />
-            </div>
-            <div className="space-y-2">
-              <Label>Telegram Bot Token</Label>
-              <div className="relative">
-                <Input type={showTelegramToken ? "text" : "password"} value={telegramBotToken} onChange={(e) => setTelegramBotToken(e.target.value)} placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" className="bg-background/50 pr-10" />
-                <button
-                  type="button"
-                  onClick={() => setShowTelegramToken(!showTelegramToken)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showTelegramToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div className="space-y-2">
-              <Label>Telegram Chat ID</Label>
-              <Input type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} placeholder="e.g. 123456789" className="bg-background/50" />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>PortaIQ / StockIQ API Key (Optional)</Label>
-              <Input type="password" value={portaiqApiKey} onChange={(e) => setPortaiqApiKey(e.target.value)} placeholder="Generate this in StockIQ Settings" className="bg-background/50" />
-            </div>
-          </div>
-            </div>
-          </div>
+              <CardDescription>Sync your automated trades to your main Trading Journal.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  <Input type="password" value={portaiqApiKey} onChange={(e) => setPortaiqApiKey(e.target.value)} placeholder="Generate this in StockIQ Settings" className="bg-background/50" />
+                </div>
+                <div className="space-y-2">
+                  <Label>API Endpoint URL</Label>
+                  <Input type="text" value={portaiqUrl} onChange={(e) => setPortaiqUrl(e.target.value)} placeholder="e.g. http://localhost:3001/api/journal/trades" className="bg-background/50 font-mono text-sm" />
+                </div>
+            </CardContent>
+          </Card>
 
-          <div className="border-t border-white/10 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <h3 className="font-semibold text-lg">Telegram Notifications</h3>
-              
-              <div className="flex items-center space-x-2">
-                <input type="checkbox" id="notifyEntry" checked={notifyTradeEntry} onChange={e => setNotifyTradeEntry(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
-                <Label htmlFor="notifyEntry" className="cursor-pointer">Trade Entries (Webhooks)</Label>
+          {/* Telegram Notifications */}
+          <Card className="bg-card/40 backdrop-blur-sm border-primary/20 shadow-[0_0_15px_rgba(0,100,255,0.05)]">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2 text-primary mb-1">
+                <Send className="w-5 h-5" />
+                <CardTitle>Telegram Notifications</CardTitle>
+              </div>
+              <CardDescription>Receive instant alerts when bots execute trades.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                  <Label>Bot Token</Label>
+                  <div className="relative">
+                    <Input type={showTelegramToken ? "text" : "password"} value={telegramBotToken} onChange={(e) => setTelegramBotToken(e.target.value)} placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" className="bg-background/50 pr-10" />
+                    <button
+                      type="button"
+                      onClick={() => setShowTelegramToken(!showTelegramToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showTelegramToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+              </div>
+              <div className="space-y-2">
+                  <Label>Chat ID</Label>
+                  <Input type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} placeholder="e.g. 123456789" className="bg-background/50" />
               </div>
 
-              <div className="flex items-center space-x-2">
-                <input type="checkbox" id="notifyClose" checked={notifyTradeClose} onChange={e => setNotifyTradeClose(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
-                <Label htmlFor="notifyClose" className="cursor-pointer">Trade Closures (Webhooks)</Label>
+              <div className="pt-2 space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="notifyEntry" checked={notifyTradeEntry} onChange={e => setNotifyTradeEntry(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                    <Label htmlFor="notifyEntry" className="cursor-pointer">Trade Entries (Webhooks)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="notifyClose" checked={notifyTradeClose} onChange={e => setNotifyTradeClose(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                    <Label htmlFor="notifyClose" className="cursor-pointer">Trade Closures (Webhooks)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="notifyTpSl" checked={notifyTpSl} onChange={e => setNotifyTpSl(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                    <Label htmlFor="notifyTpSl" className="cursor-pointer">Take Profit / Stop Loss (Background Sync)</Label>
+                  </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-center space-x-2">
-                <input type="checkbox" id="notifyTpSl" checked={notifyTpSl} onChange={e => setNotifyTpSl(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
-                <Label htmlFor="notifyTpSl" className="cursor-pointer">Take Profit / Stop Loss (Background Sync)</Label>
+          {/* TradingView Webhook Config */}
+          <Card className="bg-card/40 backdrop-blur-sm border-primary/20 shadow-[0_0_15px_rgba(0,100,255,0.05)]">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2 text-primary mb-1">
+                <Link className="w-5 h-5" />
+                <CardTitle>TradingView Webhooks</CardTitle>
               </div>
-            </div>
+              <CardDescription>Security and routing for incoming webhook signals.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Webhook Secret</Label>
+                <div className="relative">
+                  <Input type={showWebhookSecret ? "text" : "password"} value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} placeholder="Required payload secret" className="bg-background/50 font-mono text-sm pr-10" />
+                  <button
+                    type="button"
+                    onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Webhook Domain</Label>
+                <Input type="text" value={webhookDomain} onChange={(e) => setWebhookDomain(e.target.value)} placeholder="e.g. http://your-ip:4000" className="bg-background/50 font-mono text-sm" />
+              </div>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-4">
-              <h3 className="font-semibold text-lg">Engine Configuration</h3>
+          {/* Engine Config */}
+          <Card className="bg-card/40 backdrop-blur-sm border-primary/20 shadow-[0_0_15px_rgba(0,100,255,0.05)]">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2 text-primary mb-1">
+                <Settings2 className="w-5 h-5" />
+                <CardTitle>Engine Configuration</CardTitle>
+              </div>
+              <CardDescription>Control the background execution engine.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Exchange Sync Interval (Minutes)</Label>
                 <Input type="number" min={1} max={120} value={syncIntervalMinutes} onChange={(e) => setSyncIntervalMinutes(Number(e.target.value))} className="bg-background/50" />
                 <p className="text-xs text-muted-foreground">How often the background worker checks the exchange for TP/SL hits.</p>
               </div>
-            </div>
+            </CardContent>
+          </Card>
+      </div>
+
+      {/* Connected Subaccounts */}
+      <Card className="bg-card/40 backdrop-blur-sm border-primary/10">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2 text-primary mb-1">
+            <Key className="w-5 h-5" />
+            <CardTitle>Connected Subaccounts</CardTitle>
           </div>
-
-          <Button disabled={loading} onClick={handleSavePreferences} className="w-full mt-4">
-            Save Preferences
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card/40 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle>Connected Subaccounts</CardTitle>
           <CardDescription>Add the API keys for each subaccount you want to trade with.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -233,8 +267,8 @@ export default function SettingsPage() {
                 <div className="flex gap-2">
                   <AlertDialog>
                     <AlertDialogTrigger render={<Button variant="destructive" size="sm" disabled={loading} />}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
@@ -261,7 +295,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="pt-6 border-t border-white/10">
-            <h3 className="font-semibold mb-4">Add New Subaccount</h3>
+            <h3 className="font-semibold mb-4 text-foreground/80">Add New Subaccount</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Subaccount Name</Label>
@@ -288,7 +322,7 @@ export default function SettingsPage() {
                 <Input type="password" value={newSecret} onChange={(e) => setNewSecret(e.target.value)} placeholder="API Secret" className="bg-background/50" />
               </div>
             </div>
-            <Button disabled={loading || !newName || !newKey || !newSecret} onClick={handleAddKey} className="w-full mt-4">
+            <Button disabled={loading || !newName || !newKey || !newSecret} onClick={handleAddKey} className="w-full mt-4 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20">
               <Plus className="w-4 h-4 mr-2" />
               Add Subaccount
             </Button>
