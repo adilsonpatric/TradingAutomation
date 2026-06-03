@@ -46,8 +46,12 @@ The frontend serves as the control center for the user.
   - Stop Loss (%) & Take Profit (%)
   - Paper Trading Mode (Toggle)
   - Cooldown (Debounce timer to prevent duplicate signals)
-- **Settings**: Global configurations like TradingView Webhook Secret, Telegram Bot Token, and Chat ID.
-- **Trading Activity**: A real-time data table displaying the history of all executed trades, current statuses (Open/Closed), and realized PnL. Includes manual actions like deleting records or exporting them to a Journaling App (e.g., PortaIQ).
+- **Settings**: A modular interface (organized in cards) for configuring external integrations:
+  - **TradingView**: Webhook Secret configuration.
+  - **Telegram**: Bot Token, Chat ID, and granular notification toggles (Entry vs TP/SL).
+  - **PortaIQ / StockIQ**: Dynamic API Endpoint URL and API Key for journal synchronization.
+  - **Engine**: Configurable background sync frequency.
+- **Trading Activity**: A real-time data table displaying the history of all executed trades, current statuses (Open/Closed), and realized PnL. Includes a visual badge (`☁️ StockIQ`) indicating if a trade was successfully synced to the external journal, and allows manual actions like deleting records or force-exporting them.
 
 ### 3.2 Execution Engine (Backend)
 The engine runs continuously and listens for incoming webhooks on port 4000.
@@ -58,28 +62,32 @@ The engine runs continuously and listens for incoming webhooks on port 4000.
 
 ### 3.3 Exchange Synchronization (The Sync Worker)
 Since conditional orders (TP/SL) are executed by the exchange in the background, the engine features a synchronization mechanism:
-- **Periodic Polling**: A `setInterval` loop runs every 10 minutes.
+- **Configurable Polling**: A `setInterval` loop runs at a user-defined frequency (e.g., every 10 minutes).
 - **Status Check**: It queries the exchange for the status of specific `tpOrderId` and `slOrderId` associated with open trades.
-- **PnL Calculation**: If an order is found to be `closed`, the worker calculates the Realized PnL (accounting for Long or Short directions), updates the trade status to `Closed`, and fires an asynchronous Telegram alert.
+- **PnL Calculation & Actions**: If an order is found to be `closed`, the worker calculates the Realized PnL, updates the trade status to `Closed`. It then triggers secondary actions:
+  - **Telegram Alert**: Fires an asynchronous alert if configured by the user.
+  - **PortaIQ Export**: Automatically attempts to push the closed trade payload to the configured PortaIQ instance and marks `portaiqSynced` upon success.
 - **Manual Sync**: An `/api/sync` endpoint allows the frontend to trigger this process on-demand via the "Force Sync" button.
 
 ### 3.4 Notifications (Telegram)
-Integrated via `telegraf`. The bot dispatches HTML-formatted alerts directly to the user's phone for:
-- Trade Entries (Live and Paper Trading)
-- Take Profit / Stop Loss Hits (Triggered by the Sync Worker)
+Integrated via `telegraf`. The bot dispatches HTML-formatted alerts directly to the user's phone based on granular user preferences:
+- **Trade Entries**: For Live and Paper Trading events.
+- **Take Profit / Stop Loss Hits**: Triggered by the Sync Worker.
 
 ## 4. Database Schema Overview
 
-- **`users`**: Stores Webhook secrets, Telegram credentials, and domain configs.
+- **`users`**: Stores Webhook secrets, Telegram credentials, domain configs, Sync Engine intervals, and PortaIQ connection details (`portaiqUrl`, `portaiqApiKey`).
 - **`apiKeys`**: Stores encrypted API Keys and Secrets tied to specific exchanges.
 - **`bots`**: Stores all trading parameters, risk settings, and cooldown timestamps.
-- **`trades`**: The transaction ledger. Stores symbol, side, price, amount, `status` (open/closed), `pnl`, and the native exchange order IDs (`exchangeOrderId`, `tpOrderId`, `slOrderId`).
+- **`trades`**: The transaction ledger. Stores symbol, side, price, amount, `status` (open/closed), `pnl`, `portaiqSynced` boolean, and the native exchange order IDs (`exchangeOrderId`, `tpOrderId`, `slOrderId`).
 
 ## 5. Future Roadmap & Extensibility
 As this is a living document, the following features are mapped for future iterations:
-- **PortaIQ Integration**: Fully implement the mocked API call in `actions/trades.ts` to export trades automatically to the journaling system.
-- **WebSocket User Data Streams**: Upgrade the Periodic Polling sync worker to a real-time WebSocket connection for instant PnL tracking without API rate limits.
-- **Multi-User Support**: Add authentication (e.g., NextAuth/Clerk) to transition the system from a single-user architecture to a multi-tenant SaaS.
+- **Trailing Stop-Loss / Take-Profit**: Introduce dynamic trailing stops configured per-bot that follow the price action instead of relying solely on static limit orders.
+- **Advanced Dashboard Analytics**: Add charting and statistics (Win Rate, Profit Factor, Equity Curve) natively on the Trading Automation dashboard based on the internal ledger.
+- **WebSocket User Data Streams**: Upgrade the periodic polling sync worker to a real-time WebSocket connection for instant PnL tracking and order fills without API rate limits.
+- **Multi-User / SaaS Transition**: Add authentication (e.g., NextAuth/Clerk) to transition the system from a single-user self-hosted architecture to a multi-tenant SaaS platform.
+- **Strategy Backtesting Integration**: Add a module that allows importing historical TradeView alerts to backtest the engine's execution performance and slippage over time.
 
 ---
 *Note: Whenever a new major feature is added or the architectural flow changes, this document must be updated to reflect the current state of the application.*

@@ -1,29 +1,13 @@
 'use server'
 
 import { db, users, eq } from '@/lib/db';
-import crypto from 'crypto';
+import { requireUser } from '@/lib/auth';
 
-export async function getUserPreferences(userId: number) {
-    let userRecord = await db.select().from(users).where(eq(users.id, userId)).execute();
-    
-    // Auto-create default user if the DB is completely fresh
-    if (userRecord.length === 0) {
-        const defaultSecret = crypto.randomBytes(16).toString('hex');
-        await db.insert(users).values({
-            id: userId,
-            webhookSecret: defaultSecret,
-            telegramBotToken: '',
-            telegramChatId: '',
-            webhookDomain: 'http://localhost:4000'
-        }).execute();
-        
-        userRecord = await db.select().from(users).where(eq(users.id, userId)).execute();
-    }
-    
-    return userRecord[0];
+export async function getUserPreferences() {
+    return await requireUser();
 }
 
-export async function updateUserPreferences(userId: number, preferences: {
+export async function updateUserPreferences(preferences: {
     webhookSecret?: string;
     webhookDomain?: string;
     telegramBotToken?: string;
@@ -35,6 +19,7 @@ export async function updateUserPreferences(userId: number, preferences: {
     portaiqApiKey?: string;
     portaiqUrl?: string;
 }) {
+    const user = await requireUser();
     await db.update(users).set({
         webhookSecret: preferences.webhookSecret,
         telegramBotToken: preferences.telegramBotToken,
@@ -46,5 +31,5 @@ export async function updateUserPreferences(userId: number, preferences: {
         notifyTpSl: preferences.notifyTpSl,
         portaiqApiKey: preferences.portaiqApiKey,
         portaiqUrl: preferences.portaiqUrl
-    }).where(eq(users.id, userId)).execute();
+    }).where(eq(users.id, user.id)).execute();
 }

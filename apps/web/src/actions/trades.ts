@@ -1,9 +1,11 @@
 'use server'
 
-import { db, trades, bots, users, desc, eq } from '@/lib/db';
+import { db, trades, bots, users, desc, eq, and } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
 export async function getRecentTrades() {
+    const user = await requireUser();
     const data = await db
         .select({
             id: trades.id,
@@ -20,6 +22,7 @@ export async function getRecentTrades() {
         })
         .from(trades)
         .leftJoin(bots, eq(trades.botId, bots.id))
+        .where(eq(bots.userId, user.id))
         .orderBy(desc(trades.timestamp))
         .limit(100)
         .execute();
@@ -28,23 +31,29 @@ export async function getRecentTrades() {
 }
 
 export async function deleteTrade(id: number) {
+    const user = await requireUser();
+    const tradeData = await db.select({ botUserId: bots.userId }).from(trades).leftJoin(bots, eq(trades.botId, bots.id)).where(eq(trades.id, id)).execute();
+    if (!tradeData.length || tradeData[0].botUserId !== user.id) throw new Error("Unauthorized");
+
     await db.delete(trades).where(eq(trades.id, id)).execute();
     revalidatePath('/activity');
 }
 
 export async function exportTradeToPortaIQ(tradeId: number) {
-    // Buscamos o trade no banco de dados por segurança, para não depender de dados do client-side
-    const tradeData = await db.select().from(trades).where(eq(trades.id, tradeId)).execute();
+    const user = await requireUser();
+    const tradeData = await db.select({ 
+        trade: trades, 
+        bot: bots 
+    }).from(trades)
+      .innerJoin(bots, eq(trades.botId, bots.id))
+      .where(and(eq(trades.id, tradeId), eq(bots.userId, user.id)))
+      .execute();
     
     if (!tradeData.length) {
-        throw new Error("Trade not found");
+        throw new Error("Trade not found or Unauthorized");
     }
     
-    console.log("[PortaIQ Integration] Exporting trade:", tradeData[0]);
-    
-    // We get user preferences to find the API key
-    const userData = await db.select().from(users).where(eq(users.id, 1)).execute();
-    const user = userData[0];
+    console.log("[PortaIQ Integration] Exporting trade:", tradeData[0].trade);
 
     if (!user || !user.portaiqApiKey) {
         throw new Error("PortaIQ API Key not configured in Settings");
@@ -53,9 +62,8 @@ export async function exportTradeToPortaIQ(tradeId: number) {
     const portaiqApiKey = user.portaiqApiKey;
     const portaiqUrl = user.portaiqUrl || 'http://localhost:3001/api/journal/trades';
     
-    const trade = tradeData[0];
-    const botData = await db.select().from(bots).where(eq(bots.id, trade.botId!)).execute();
-    const bot = botData[0];
+    const trade = tradeData[0].trade;
+    const bot = tradeData[0].bot;
 
         let entryDateStr = new Date().toISOString();
         if (trade.timestamp) {

@@ -77,14 +77,14 @@ export default function BotsPage() {
   };
 
   const loadBots = async () => {
-    const [data, keysData, prefs] = await Promise.all([
+    const [botsData, keysData, prefsData] = await Promise.all([
       getBots(),
-      getApiKeys(1),
-      getUserPreferences(1)
+      getApiKeys(),
+      getUserPreferences()
     ]);
-    setBots(data);
+    setBots(botsData);
     setKeys(keysData);
-    if (prefs && prefs.webhookDomain) setWebhookDomain(prefs.webhookDomain);
+    if (prefsData && prefsData.webhookDomain) setWebhookDomain(prefsData.webhookDomain);
   };
 
   useEffect(() => {
@@ -188,7 +188,6 @@ export default function BotsPage() {
       );
     } else {
       await createBot(
-        1, 
         name, 
         selectedKey.exchange, 
         Number(apiKeyId),

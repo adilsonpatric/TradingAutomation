@@ -22,7 +22,7 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     setLoading(true);
     const [portfolioData, botsData] = await Promise.all([
-      getCompletePortfolio(1),
+      getCompletePortfolio(),
       getBots()
     ]);
     

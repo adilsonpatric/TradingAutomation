@@ -1,6 +1,6 @@
 import { db, users, bots, trades, apiKeys, eq } from './db/sqlite-client';
 import { and, or, isNotNull, desc } from 'drizzle-orm';
-import ccxt from 'ccxt';
+import ccxt, { Order } from 'ccxt';
 import { decrypt } from 'database';
 import { Telegraf } from 'telegraf';
 
@@ -59,7 +59,7 @@ export async function syncPositions() {
                 options: { defaultType: bot.marketType }
             });
 
-            let closedOrder: ccxt.Order | null = null;
+            let closedOrder: Order | null = null;
             let hitType = '';
 
             try {

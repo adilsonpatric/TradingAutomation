@@ -1,13 +1,15 @@
 'use server'
 
 import { db, bots } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
+import { eq, and } from 'drizzle-orm';
 
 export async function getBots() {
-    return await db.select().from(bots).execute();
+    const user = await requireUser();
+    return await db.select().from(bots).where(eq(bots.userId, user.id)).execute();
 }
 
 export async function createBot(
-    userId: number, 
     name: string, 
     exchange: string, 
     apiKeyId: number,
@@ -22,8 +24,9 @@ export async function createBot(
     slPercent: number | null,
     tpPercent: number | null
 ) {
+    const user = await requireUser();
     const result = await db.insert(bots).values({
-        userId,
+        userId: user.id,
         name,
         exchange,
         apiKeyId,
@@ -43,8 +46,6 @@ export async function createBot(
     return result[0];
 }
 
-import { eq } from 'drizzle-orm';
-
 export async function updateBot(
     botId: number, 
     name: string, 
@@ -61,6 +62,11 @@ export async function updateBot(
     slPercent: number | null,
     tpPercent: number | null
 ) {
+    const user = await requireUser();
+    // Verify bot ownership
+    const bot = await db.select().from(bots).where(and(eq(bots.id, botId), eq(bots.userId, user.id))).execute();
+    if (!bot.length) throw new Error("Unauthorized");
+
     await db.update(bots).set({
         name,
         exchange,
@@ -79,9 +85,17 @@ export async function updateBot(
 }
 
 export async function toggleBotStatus(botId: number, currentStatus: boolean) {
+    const user = await requireUser();
+    const bot = await db.select().from(bots).where(and(eq(bots.id, botId), eq(bots.userId, user.id))).execute();
+    if (!bot.length) throw new Error("Unauthorized");
+
     await db.update(bots).set({ isRunning: !currentStatus }).where(eq(bots.id, botId)).execute();
 }
 
 export async function deleteBot(botId: number) {
+    const user = await requireUser();
+    const bot = await db.select().from(bots).where(and(eq(bots.id, botId), eq(bots.userId, user.id))).execute();
+    if (!bot.length) throw new Error("Unauthorized");
+
     await db.delete(bots).where(eq(bots.id, botId)).execute();
 }

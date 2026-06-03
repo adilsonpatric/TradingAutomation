@@ -55,7 +55,7 @@ export default function SettingsPage() {
   const [testStatus, setTestStatus] = useState<Record<number, { testing: boolean, result: string, expiresAt: string }>>({});
 
   const loadData = async () => {
-    const prefs = await getUserPreferences(1);
+    const prefs = await getUserPreferences();
     if (prefs) {
       setWebhookSecret(prefs.webhookSecret || "");
       setTelegramBotToken(prefs.telegramBotToken || "");
@@ -68,7 +68,7 @@ export default function SettingsPage() {
       setPortaiqApiKey(prefs.portaiqApiKey || "");
       setPortaiqUrl(prefs.portaiqUrl || "");
     }
-    const list = await getApiKeys(1);
+    const list = await getApiKeys();
     setKeys(list as ApiKey[]);
   };
 
@@ -79,7 +79,7 @@ export default function SettingsPage() {
   const handleAddKey = async () => {
     if (!newName || !newKey || !newSecret) return;
     setLoading(true);
-    await addApiKey(1, newName, newExchange, newKey, newSecret);
+    await addApiKey(newName, newExchange, newKey, newSecret);
     setLoading(false);
     setNewName("");
     setNewKey("");
@@ -89,7 +89,7 @@ export default function SettingsPage() {
 
   const handleDeleteKey = async (id: number) => {
     setLoading(true);
-    await deleteApiKey(1, id);
+    await deleteApiKey(id);
     setLoading(false);
     toast.success('Subaccount deleted successfully');
     loadData();
@@ -101,7 +101,7 @@ export default function SettingsPage() {
         return;
     }
     setLoading(true);
-    await updateUserPreferences(1, {
+    await updateUserPreferences({
       webhookSecret, 
       telegramBotToken, 
       telegramChatId, 

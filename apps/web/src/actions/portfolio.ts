@@ -2,10 +2,12 @@
 
 import ccxt from 'ccxt';
 import { db, apiKeys, eq } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
 import { decrypt } from 'database';
 
-export async function getCompletePortfolio(userId: number) {
-    const keys = await db.select().from(apiKeys).where(eq(apiKeys.userId, userId)).execute();
+export async function getCompletePortfolio() {
+    const user = await requireUser();
+    const keys = await db.select().from(apiKeys).where(eq(apiKeys.userId, user.id)).execute();
     
     let totalUsd = 0;
     const assetsMap = new Map<string, { balance: number, usdValue: number }>();
